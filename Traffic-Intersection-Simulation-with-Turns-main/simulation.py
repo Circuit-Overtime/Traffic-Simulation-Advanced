@@ -11,6 +11,7 @@ defaultGreen = {0:10, 1:10, 2:10, 3:10}
 defaultRed = 150
 defaultYellow = 5
 paused = False
+pause_start_time = 0
 signals = []
 noOfSignals = 4
 currentGreen = 0   # Indicates which signal is green currently
@@ -354,6 +355,33 @@ def get_density_from_time(time):
         return "high"
 
 
+def calculate_queue_length(direction):
+    queue_length = 0
+    for lane in range(1, 3):  # lanes 1 and 2
+        for vehicle in vehicles[direction][lane]:
+            if not vehicle.crossed: # Consider only vehicles that have not crossed
+                if direction == 'right':
+                    if vehicle.x + vehicle.image.get_rect().width <= stopLines[direction]: # Vehicle is behind the stop line
+                        queue_length += 1
+                elif direction == 'down':
+                    if vehicle.y + vehicle.image.get_rect().height <= stopLines[direction]:
+                        queue_length += 1
+                elif direction == 'left':
+                    if vehicle.x >= stopLines[direction]:
+                        queue_length += 1
+                elif direction == 'up':
+                    if vehicle.y >= stopLines[direction]:
+                        queue_length += 1
+    return queue_length
+
+def adapt_green_time(queue_length):
+    """Adapts the green time based on the queue length."""
+    min_green = 10
+    max_green = 20
+    green_time = min_green + (max_green - min_green) * (queue_length / 20)  # Scale green time (adjust divisor as needed)
+    return max(min_green, min(max_green, int(green_time)))  # Clamp to range [10, 20]
+
+
 def visualize_sine_curve(duration, time_increment, max_density, shift, frequency):
     time_points = []
     density_values = []
@@ -401,34 +429,38 @@ def initialize():
     repeat()
 
 def repeat():
-    global currentGreen, currentYellow, nextGreen, time_of_day, vehicle_density
-    oppositeSignal = (currentGreen + 2) % noOfSignals 
+    global currentGreen, currentYellow, nextGreen, time_of_day, vehicle_density, paused, pause_start_time
 
     while(signals[currentGreen].green>0):
         if not paused:
             updateValues()
             time.sleep(1)
-            if signals[oppositeSignal].red > defaultYellow:
-                signals[oppositeSignal].green = signals[currentGreen].green
-                signals[oppositeSignal].red = 0
-                updateValues()
-            elif signals[oppositeSignal].green > 0:
-                updateValues()
+            time_of_day += time_increment
+            vehicle_density = get_density_from_time(time_of_day)
 
-            time.sleep(1)
-            time_of_day += time_increment #increment time 
-            vehicle_density = get_density_from_time(time_of_day) # updating density every second
+        elif pause_start_time == 0: # Only record pause start time once
+            pause_start_time = time.time()
+        time.sleep(0.1)  # Small delay to reduce CPU usage during pause
     currentYellow = 1   # set yellow signal on
+
     # reset stop coordinates of lanes and vehicles 
     for i in range(0,3):
         for vehicle in vehicles[directionNumbers[currentGreen]][i]:
             vehicle.stop = defaultStop[directionNumbers[currentGreen]]
-    while(signals[currentGreen].yellow>0):  # while the timer of current yellow signal is not zero
-        updateValues()
-        time.sleep(1)
-        time_of_day += time_increment #incrementing the time
-        vehicle_density = get_density_from_time(time_of_day) # updating density every second
+
+    while(signals[currentGreen].yellow>0):
+        if not paused:
+            updateValues()
+            time.sleep(1)
+            time_of_day += time_increment #incrementing the time
+            vehicle_density = get_density_from_time(time_of_day) # updating density every second
+        elif pause_start_time == 0:
+            pause_start_time = time.time()
+        time.sleep(0.1)
+        
     currentYellow = 0   # set yellow signal off
+    queue_length = calculate_queue_length(directionNumbers[nextGreen])
+    signals[nextGreen].green = adapt_green_time(queue_length)
 
     # calculate total green yellow time
     total_green_yellow_time = 0
@@ -454,14 +486,15 @@ def repeat():
 
 # Update values of the signal timers after every second
 def updateValues():
-    for i in range(0, noOfSignals):
-        if(i==currentGreen):
-            if(currentYellow==0):
-                signals[i].green-=1
+    if not paused:  # Only update if not paused
+        for i in range(0, noOfSignals):
+            if i == currentGreen:
+                if currentYellow == 0:
+                    signals[i].green -= 1
+                else:
+                    signals[i].yellow -= 1
             else:
-                signals[i].yellow-=1
-        else:
-            signals[i].red-=1
+                signals[i].red -= 1
 
 # Generating vehicles in the simulation
 def generateVehicles():
@@ -531,7 +564,6 @@ class Main:
     thread2.start()
 
     while True:
-        oppositeSignal = (currentGreen + 2) % noOfSignals 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 sys.exit()
@@ -539,22 +571,26 @@ class Main:
                 if event.key == pygame.K_SPACE:
                     paused = not paused
                     if paused:
+                        pause_start_time = time.time()
                         pygame.display.set_caption("SIMULATION (PAUSED)")
                     else:
+                        pause_duration = time.time() - pause_start_time
+                        time_of_day += pause_duration / (24 * 3600)
+                        pause_start_time = 0
                         pygame.display.set_caption("SIMULATION")
         
         if not paused:
             screen.blit(background,(0,0))   # display background in simulation
             for i in range(noOfSignals):
-                if i == currentGreen or (signals[i].green > 0 and i == oppositeSignal):  # Check both signals
-                    if currentYellow == 1 and i == currentGreen: # Only show yellow for the primary green signal
+                if(i==currentGreen): # Only one signal is green or yellow at a time.
+                    if(currentYellow==1):
                         signals[i].signalText = signals[i].yellow
                         screen.blit(yellowSignal, signalCoods[i])
                     else:
                         signals[i].signalText = signals[i].green
                         screen.blit(greenSignal, signalCoods[i])
-                else:  # Red signal
-                    if signals[i].red <= 10:
+                else: # All other signals are red.
+                    if(signals[i].red<=10):
                         signals[i].signalText = signals[i].red
                     else:
                         signals[i].signalText = "---"
