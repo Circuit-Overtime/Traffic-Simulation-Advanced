@@ -519,3 +519,7 @@ class Main:
 
 
 Main()
+
+
+## addded the time and update functions for simulating the traffic flow 
+## based on the time of the day
