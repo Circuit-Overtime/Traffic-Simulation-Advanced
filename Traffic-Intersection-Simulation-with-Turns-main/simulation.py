@@ -4,6 +4,7 @@ import threading
 import pygame
 import sys
 import math
+import matplotlib.pyplot as plt
 
 # Default values of signal timers
 defaultGreen = {0:10, 1:10, 2:10, 3:10}
@@ -11,7 +12,7 @@ defaultRed = 150
 defaultYellow = 5
 
 signals = []
-noOfSignals = 4
+noOfSignals = 1
 currentGreen = 0   # Indicates which signal is green currently
 nextGreen = (currentGreen+1)%noOfSignals    # Indicates which signal will turn green next
 currentYellow = 0   # Indicates whether yellow signal is on or off 
@@ -333,13 +334,43 @@ class Vehicle(pygame.sprite.Sprite):
 
 # Time to density mapping function
 def get_density_from_time(time):
-     density = max_density * abs(math.sin((time+shift) * frequency * math.pi))
-     if density < 0.2:
-      return "low"
-     elif density < 0.7:
-      return "medium"
-     else:
-      return "high"
+    # Time is represented as a fraction of a day (0.0 to 1.0)
+    morning_peak = 0.3  # 7:12 AM (approx.)
+    evening_peak = 0.7  # 5:00 PM (approx.)
+    peak_width = 0.2  # Adjust the width of the peaks
+
+    # Calculate density based on a combination of sine waves for morning and evening
+    morning_density = max_density * math.exp(-((time - morning_peak)**2) / (2 * peak_width**2))
+    evening_density = max_density * math.exp(-((time - evening_peak)**2) / (2 * peak_width**2))
+
+    # Combine the densities, you might want to adjust the weights (0.6 and 0.4 here)
+    density = 0.7 * morning_density + 0.6 * evening_density
+
+    if density < 0.2:
+        return "low"
+    elif density < 0.7:
+        return "medium"
+    else:
+        return "high"
+
+
+def visualize_sine_curve(duration, time_increment, max_density, shift, frequency):
+    time_points = []
+    density_values = []
+    time_of_day = 0.0
+    
+    for _ in range(int(duration/time_increment)):
+        density = max_density * abs(math.sin((time_of_day+shift) * frequency * math.pi))
+        time_points.append(time_of_day)
+        density_values.append(density)
+        time_of_day += time_increment
+    
+    plt.plot(time_points, density_values)
+    plt.xlabel("Time of Day")
+    plt.ylabel("Density (0 to 1)")
+    plt.title("Sine Curve Visualization")
+    plt.grid(True)
+    plt.show()
 
 # Initialization of signals with default values
 def initialize():
@@ -449,6 +480,7 @@ def generateVehicles():
         Vehicle(lane_number, vehicleTypes[vehicle_type], direction_number, directionNumbers[direction_number], will_turn)
         time.sleep(1)
 
+
 class Main:
     global allowedVehicleTypesList
     i = 0
@@ -456,6 +488,9 @@ class Main:
         if(allowedVehicleTypes[vehicleType]):
             allowedVehicleTypesList.append(i)
         i += 1
+    
+    visualize_sine_curve(duration=10, time_increment = time_increment, max_density = max_density, shift= shift, frequency = frequency)
+
     thread1 = threading.Thread(name="initialization",target=initialize, args=())    # initialization
     thread1.daemon = True
     thread1.start()
@@ -515,6 +550,8 @@ class Main:
         for vehicle in simulation:  
             screen.blit(vehicle.image, [vehicle.x, vehicle.y])
             vehicle.move()
+        time_text = font.render(f"Time: {int(time_of_day * 24):02}:{int((time_of_day * 24 * 60) % 60):02}", True, white, black)  # Format time as HH:MM
+        screen.blit(time_text, (10, 10)) # Display in top-left corner
         pygame.display.update()
 
 
