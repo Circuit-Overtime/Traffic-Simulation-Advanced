@@ -10,9 +10,9 @@ import matplotlib.pyplot as plt
 defaultGreen = {0:10, 1:10, 2:10, 3:10}
 defaultRed = 150
 defaultYellow = 5
-
+paused = False
 signals = []
-noOfSignals = 1
+noOfSignals = 4
 currentGreen = 0   # Indicates which signal is green currently
 nextGreen = (currentGreen+1)%noOfSignals    # Indicates which signal will turn green next
 currentYellow = 0   # Indicates whether yellow signal is on or off 
@@ -402,11 +402,22 @@ def initialize():
 
 def repeat():
     global currentGreen, currentYellow, nextGreen, time_of_day, vehicle_density
-    while(signals[currentGreen].green>0):   # while the timer of current green signal is not zero
-        updateValues()
-        time.sleep(1)
-        time_of_day += time_increment #increment time 
-        vehicle_density = get_density_from_time(time_of_day) # updating density every second
+    oppositeSignal = (currentGreen + 2) % noOfSignals 
+
+    while(signals[currentGreen].green>0):
+        if not paused:
+            updateValues()
+            time.sleep(1)
+            if signals[oppositeSignal].red > defaultYellow:
+                signals[oppositeSignal].green = signals[currentGreen].green
+                signals[oppositeSignal].red = 0
+                updateValues()
+            elif signals[oppositeSignal].green > 0:
+                updateValues()
+
+            time.sleep(1)
+            time_of_day += time_increment #increment time 
+            vehicle_density = get_density_from_time(time_of_day) # updating density every second
     currentYellow = 1   # set yellow signal on
     # reset stop coordinates of lanes and vehicles 
     for i in range(0,3):
@@ -423,7 +434,7 @@ def repeat():
     total_green_yellow_time = 0
     for signal in signals:
         total_green_yellow_time += signal.green + signal.yellow
-    
+
     # calculate flow of current direction
     saturation_flow = (constant_flow * speeds[vehicleTypes[0]]) / average_length_of_vehicle # taking car as reference
 
@@ -520,38 +531,48 @@ class Main:
     thread2.start()
 
     while True:
+        oppositeSignal = (currentGreen + 2) % noOfSignals 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    paused = not paused
+                    if paused:
+                        pygame.display.set_caption("SIMULATION (PAUSED)")
+                    else:
+                        pygame.display.set_caption("SIMULATION")
+        
+        if not paused:
+            screen.blit(background,(0,0))   # display background in simulation
+            for i in range(noOfSignals):
+                if i == currentGreen or (signals[i].green > 0 and i == oppositeSignal):  # Check both signals
+                    if currentYellow == 1 and i == currentGreen: # Only show yellow for the primary green signal
+                        signals[i].signalText = signals[i].yellow
+                        screen.blit(yellowSignal, signalCoods[i])
+                    else:
+                        signals[i].signalText = signals[i].green
+                        screen.blit(greenSignal, signalCoods[i])
+                else:  # Red signal
+                    if signals[i].red <= 10:
+                        signals[i].signalText = signals[i].red
+                    else:
+                        signals[i].signalText = "---"
+                    screen.blit(redSignal, signalCoods[i])
 
-        screen.blit(background,(0,0))   # display background in simulation
-        for i in range(0,noOfSignals):  # display signal and set timer according to current status: green, yello, or red
-            if(i==currentGreen):
-                if(currentYellow==1):
-                    signals[i].signalText = signals[i].yellow
-                    screen.blit(yellowSignal, signalCoods[i])
-                else:
-                    signals[i].signalText = signals[i].green
-                    screen.blit(greenSignal, signalCoods[i])
-            else:
-                if(signals[i].red<=10):
-                    signals[i].signalText = signals[i].red
-                else:
-                    signals[i].signalText = "---"
-                screen.blit(redSignal, signalCoods[i])
-        signalTexts = ["","","",""]
+            signalTexts = ["","","",""]
 
-        # display signal timer
-        for i in range(0,noOfSignals):  
-            signalTexts[i] = font.render(str(signals[i].signalText), True, white, black)
-            screen.blit(signalTexts[i],signalTimerCoods[i])
+            # display signal timer
+            for i in range(0,noOfSignals):  
+                signalTexts[i] = font.render(str(signals[i].signalText), True, white, black)
+                screen.blit(signalTexts[i],signalTimerCoods[i])
 
-        # display the vehicles
-        for vehicle in simulation:  
-            screen.blit(vehicle.image, [vehicle.x, vehicle.y])
-            vehicle.move()
-        time_text = font.render(f"Time: {int(time_of_day * 24):02}:{int((time_of_day * 24 * 60) % 60):02}", True, white, black)  # Format time as HH:MM
-        screen.blit(time_text, (10, 10)) # Display in top-left corner
+            # display the vehicles
+            for vehicle in simulation:  
+                screen.blit(vehicle.image, [vehicle.x, vehicle.y])
+                vehicle.move()
+            time_text = font.render(f"Time: {int(time_of_day * 24):02}:{int((time_of_day * 24 * 60) % 60):02}", True, white, black)  # Format time as HH:MM
+            screen.blit(time_text, (10, 10)) # Display in top-left corner
         pygame.display.update()
 
 
