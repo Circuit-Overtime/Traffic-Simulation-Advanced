@@ -1,0 +1,6 @@
+add statistical logging about the no of cars, singal switching and more 
+
+change the clock to accomodate a 24 hrs clock where 1hr = 1min
+
+adding priority cars like ambulance which will be able to change lanes
+and assignment of green corridors

@@ -533,7 +533,7 @@ class Main:
             allowedVehicleTypesList.append(i)
         i += 1
     
-    visualize_sine_curve(duration=10, time_increment = time_increment, max_density = max_density, shift= shift, frequency = frequency)
+    # visualize_sine_curve(duration=10, time_increment = time_increment, max_density = max_density, shift= shift, frequency = frequency)
 
     thread1 = threading.Thread(name="initialization",target=initialize, args=())    # initialization
     thread1.daemon = True
