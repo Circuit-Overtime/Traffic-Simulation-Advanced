@@ -507,12 +507,18 @@ def updateValues():
 # Generating vehicles in the simulation
 def generateVehicles():
     global spawn_rate
-    while(True):
-        if not paused:
+    while True:
+        current_time = time_of_day * 24  # Get the current time FIRST
+
+        if 7 <= current_time <= 9 or 17 <= current_time <= 18:
+            spawn_rate = 0.25  # Increased spawn rate during peak hours
+        else:
+            spawn_rate = 1  # Normal spawn rate
+
+        if not paused: #Generate vehicle only if not paused
             vehicle_type = random.choice(allowedVehicleTypesList)
             lane_number = random.randint(1,2)
             will_turn = 0
-            current_time = time_of_day * 24  # Time in hours (0-23)
             if(lane_number == 1):
                 temp = random.randint(0,99)
                 if(temp<40):
@@ -533,13 +539,10 @@ def generateVehicles():
             elif(temp<dist[3]):
                 direction_number = 3
             Vehicle(lane_number, vehicleTypes[vehicle_type], direction_number, directionNumbers[direction_number], will_turn)
-            if 7 <= current_time <= 9 or 17 <= current_time <= 18:  # Peak hours
-                spawn_rate = 0.25  # Increase spawn rate during peak hours (spawn every 0.5 seconds)
-            else:
-                spawn_rate = 1  # Normal spawn rate
-            time.sleep(spawn_rate)
-        else:
-            time.sleep(0.1) 
+            
+        time.sleep(spawn_rate) #Sleep outside the if not paused condition
+
+        
 
 
 class Main:
