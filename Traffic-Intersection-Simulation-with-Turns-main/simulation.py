@@ -17,7 +17,7 @@ noOfSignals = 4
 currentGreen = 0   # Indicates which signal is green currently
 nextGreen = (currentGreen+1)%noOfSignals    # Indicates which signal will turn green next
 currentYellow = 0   # Indicates whether yellow signal is on or off 
-
+spawn_rate = 1
 speeds = {'car':2.25, 'bus':1.8, 'truck':1.8, 'bike':2.5}  # average speeds of vehicles
 
 # Coordinates of vehicles' start
@@ -61,7 +61,7 @@ average_length_of_vehicle = 5 # assume length of vehicle is 5 meter
 
 # Added global variables
 time_of_day = 0.0  # initial time
-time_increment = 0.01  # Adjust as needed for simulation time step
+time_increment = 1/(24) * 0.25  # Time increment in seconds (1 second)
 max_density = 1.0
 shift = 0.15 # constant to change shift of sine wave
 frequency = 0.5 # how often peak of traffic comes in
@@ -336,23 +336,30 @@ class Vehicle(pygame.sprite.Sprite):
 # Time to density mapping function
 def get_density_from_time(time):
     # Time is represented as a fraction of a day (0.0 to 1.0)
-    morning_peak = 0.3  # 7:12 AM (approx.)
-    evening_peak = 0.7  # 5:00 PM (approx.)
-    peak_width = 0.2  # Adjust the width of the peaks
+    morning_peak_start = 7/24  # 7:00 AM
+    morning_peak_end = 9/24    # 9:00 AM
+    evening_peak_start = 17/24 # 5:00 PM
+    evening_peak_end = 18/24   # 6:00 PM
 
-    # Calculate density based on a combination of sine waves for morning and evening
-    morning_density = max_density * math.exp(-((time - morning_peak)**2) / (2 * peak_width**2))
-    evening_density = max_density * math.exp(-((time - evening_peak)**2) / (2 * peak_width**2))
 
-    # Combine the densities, you might want to adjust the weights (0.6 and 0.4 here)
-    density = 0.7 * morning_density + 0.6 * evening_density
-
-    if density < 0.2:
-        return "low"
-    elif density < 0.7:
-        return "medium"
+    if morning_peak_start <= time <= morning_peak_end or evening_peak_start <= time <= evening_peak_end:
+        return "high"  # Set density to high during peak hours
     else:
-        return "high"
+      # Existing logic:
+      morning_peak_center = 0.3  # 7:12 AM (approx.)
+      evening_peak_center = 0.7  # 5:00 PM (approx.)
+      peak_width = 0.2  # Adjust the width of the peaks
+      morning_density = max_density * math.exp(-((time - morning_peak_center)**2) / (2 * peak_width**2))
+      evening_density = max_density * math.exp(-((time - evening_peak_center)**2) / (2 * peak_width**2))
+      density = 0.7 * morning_density + 0.6 * evening_density
+
+
+      if density < 0.2:
+          return "low"
+      elif density < 0.7:
+          return "medium"
+      else:
+          return "high"
 
 
 def calculate_queue_length(direction):
@@ -436,6 +443,7 @@ def repeat():
             updateValues()
             time.sleep(1)
             time_of_day += time_increment
+            time_of_day %= 1
             vehicle_density = get_density_from_time(time_of_day)
 
         elif pause_start_time == 0: # Only record pause start time once
@@ -498,31 +506,40 @@ def updateValues():
 
 # Generating vehicles in the simulation
 def generateVehicles():
+    global spawn_rate
     while(True):
-        vehicle_type = random.choice(allowedVehicleTypesList)
-        lane_number = random.randint(1,2)
-        will_turn = 0
-        if(lane_number == 1):
+        if not paused:
+            vehicle_type = random.choice(allowedVehicleTypesList)
+            lane_number = random.randint(1,2)
+            will_turn = 0
+            current_time = time_of_day * 24  # Time in hours (0-23)
+            if(lane_number == 1):
+                temp = random.randint(0,99)
+                if(temp<40):
+                    will_turn = 1
+            elif(lane_number == 2):
+                temp = random.randint(0,99)
+                if(temp<40):
+                    will_turn = 1
             temp = random.randint(0,99)
-            if(temp<40):
-                will_turn = 1
-        elif(lane_number == 2):
-            temp = random.randint(0,99)
-            if(temp<40):
-                will_turn = 1
-        temp = random.randint(0,99)
-        direction_number = 0
-        dist = [25,50,75,100]
-        if(temp<dist[0]):
             direction_number = 0
-        elif(temp<dist[1]):
-            direction_number = 1
-        elif(temp<dist[2]):
-            direction_number = 2
-        elif(temp<dist[3]):
-            direction_number = 3
-        Vehicle(lane_number, vehicleTypes[vehicle_type], direction_number, directionNumbers[direction_number], will_turn)
-        time.sleep(1)
+            dist = [25,50,75,100]
+            if(temp<dist[0]):
+                direction_number = 0
+            elif(temp<dist[1]):
+                direction_number = 1
+            elif(temp<dist[2]):
+                direction_number = 2
+            elif(temp<dist[3]):
+                direction_number = 3
+            Vehicle(lane_number, vehicleTypes[vehicle_type], direction_number, directionNumbers[direction_number], will_turn)
+            if 7 <= current_time <= 9 or 17 <= current_time <= 18:  # Peak hours
+                spawn_rate = 0.25  # Increase spawn rate during peak hours (spawn every 0.5 seconds)
+            else:
+                spawn_rate = 1  # Normal spawn rate
+            time.sleep(spawn_rate)
+        else:
+            time.sleep(0.1) 
 
 
 class Main:
@@ -607,6 +624,8 @@ class Main:
             for vehicle in simulation:  
                 screen.blit(vehicle.image, [vehicle.x, vehicle.y])
                 vehicle.move()
+            hours = int(time_of_day * 24)  # Get the hour (0-23)
+            minutes = int((time_of_day * 24 * 60) % 60)  # Get the minutes (0-59)
             time_text = font.render(f"Time: {int(time_of_day * 24):02}:{int((time_of_day * 24 * 60) % 60):02}", True, white, black)  # Format time as HH:MM
             screen.blit(time_text, (10, 10)) # Display in top-left corner
         pygame.display.update()
