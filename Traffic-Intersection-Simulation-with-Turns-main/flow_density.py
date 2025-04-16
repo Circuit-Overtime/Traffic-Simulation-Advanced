@@ -619,6 +619,41 @@ def generateVehicles():
 
         
 
+def generate_flow_density_plot(car_counts, density_log):
+    """
+    Generates a figure with two subplots:
+    1. Car Counts Over Time (Time-Series)
+    2. Density Distribution (Bar Chart)
+
+    Args:
+        car_counts (list): List of dictionaries, where each dictionary contains
+                           vehicle type counts for each time step.
+        density_log (dict): Dictionary containing counts for each density level
+                            (e.g., {"low": 47, "medium": 29, "high": 19}).
+    """
+
+    fig, axes = plt.subplots(2, 1, figsize=(8, 8)) # 2 rows, 1 column for subplots
+    fig.suptitle("Flow and Density Time-Series", fontsize=14)
+
+    # 1. Car Counts Over Time (Time-Series)
+    time_steps = range(len(car_counts))
+    total_car_counts = [sum(step_counts.values()) for step_counts in car_counts]
+    axes[0].plot(time_steps, total_car_counts, label="Total Car Counts", color="blue")
+    axes[0].set_xlabel("Time Step (seconds)")
+    axes[0].set_ylabel("Number of Cars")
+    axes[0].set_title("Car Counts Over Time")
+    axes[0].grid(True)
+
+    # 2. Density Distribution (Bar Chart)
+    densities = list(density_log.keys())
+    counts = list(density_log.values())
+    axes[1].bar(densities, counts, color="green", alpha=0.7)
+    axes[1].set_xlabel("Traffic Density Level")
+    axes[1].set_ylabel("Number of Time Steps")
+    axes[1].set_title("Density Distribution")
+
+    plt.tight_layout(rect=[0, 0, 1, 0.95]) # Adjust layout to prevent title overlap
+    plt.show()
 
 class Main:
     global allowedVehicleTypesList, start_time
@@ -711,7 +746,8 @@ class Main:
             # print(time_of_day * 24)
             screen.blit(time_text, (10, 10)) # Display in top-left corner
             if time_of_day * 24 >= 23:  # Check if a full day (24 hours) has passed
-                visualize_stats()  # Display statistics after one day
+                # visualize_stats()  # Display statistics after one day
+                generate_flow_density_plot(car_counts, density_log)
                 pygame.quit()  # Close Pygame
                 exit()    # Exit the program
         pygame.display.update()

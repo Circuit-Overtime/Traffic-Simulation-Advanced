@@ -384,6 +384,52 @@ def adapt_green_time(queue_length):
     green_time = min_green + (max_green - min_green) * (queue_length / 20)  # Scale green time (adjust divisor as needed)
     return max(min_green, min(max_green, int(green_time)))  # Clamp to range [10, 20]
 
+def calculate_shannon_entropy(vehicle_counts):
+    """
+    Calculates Shannon entropy for the vehicle type distribution in a given time step.
+
+    Args:
+        vehicle_counts (dict): Dictionary of vehicle type counts for a single time step
+                                (e.g., {'car': 10, 'bus': 3, 'truck': 2, 'bike': 5}).
+
+    Returns:
+        float: Shannon entropy value in bits.
+    """
+    total_vehicles = sum(vehicle_counts.values())
+    if total_vehicles == 0:
+        return 0.0  # Entropy is 0 if no vehicles are present
+
+    entropy = 0.0
+    for count in vehicle_counts.values():
+        if count > 0:
+            probability = count / total_vehicles
+            entropy -= probability * math.log2(probability)
+    return entropy
+
+def generate_entropy_variation_plot(car_counts_history):
+    """
+    Generates a time-series plot of Shannon entropy variation over time.
+
+    Args:
+        car_counts_history (list): List of dictionaries, where each dictionary contains
+                                   vehicle type counts for each time step.
+    """
+    entropy_values = []
+    for step_counts in car_counts_history:
+        entropy = calculate_shannon_entropy(step_counts)
+        entropy_values.append(entropy)
+
+    time_steps = range(len(entropy_values))
+
+    plt.figure(figsize=(8, 6)) # Create a new figure for entropy plot
+    plt.plot(time_steps, entropy_values, color="purple")
+    plt.xlabel("Time Step (seconds)")
+    plt.ylabel("Shannon Entropy (bits)")
+    plt.title("Entropy Variation Over Time")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
 
 def visualize_sine_curve(duration, time_increment, max_density, shift, frequency):
     time_points = []
@@ -711,7 +757,7 @@ class Main:
             # print(time_of_day * 24)
             screen.blit(time_text, (10, 10)) # Display in top-left corner
             if time_of_day * 24 >= 23:  # Check if a full day (24 hours) has passed
-                visualize_stats()  # Display statistics after one day
+                generate_entropy_variation_plot(car_counts)
                 pygame.quit()  # Close Pygame
                 exit()    # Exit the program
         pygame.display.update()
